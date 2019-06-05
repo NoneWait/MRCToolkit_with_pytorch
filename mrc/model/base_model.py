@@ -3,10 +3,21 @@ import logging
 import numpy as np
 import os
 from collections import OrderedDict, defaultdict
+import torch.nn as nn
 
+"""
+基本模型框架：
+1. load
+2. save
+3. train and eval
+4. eval
+5. inference
+6. get best answer
+"""
 
-class BaseModel(object):
+class BaseModel(nn.Module):
     def __init__(self, vocab=None):
+        super(BaseModel, self).__init__()
         self.vocab = vocab
 
         self.initialized = False
@@ -24,7 +35,7 @@ class BaseModel(object):
     def save(self, path, global_step=None, var_list=None):
         pass
 
-    def _build_graph(self):
+    def forward(self, *input):
         raise NotImplementedError
 
     def compile(self, *input):
