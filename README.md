@@ -3,26 +3,26 @@
 
 # TODO
 - dataset
-    - [] base_dataset
-    - [] squad_dataset
+    - [ ] base_dataset
+    - [ ] squad_dataset
     - ...
 - data
-    - [] vocab
-    - [] batch_generator
+    - [ ] vocab
+    - [ ] batch_generator
 - train
-    - [] trainer
+    - [ ] trainer
 - model
-    - [] base_model
-    - [] rnet
+    - [ ] base_model
+    - [ ] rnet
     - ...
 - nn
-    - [] attention
-    - [] ...
+    - [ ] attention
+    - [ ] ...
 - utils 
-    - [] feature_extractor
-    - [] tokenizer
+    - [ ] feature_extractor
+    - [ ] tokenizer
 - library
-    - [] bert
+    - [ ] bert
     
     
 # timeline
