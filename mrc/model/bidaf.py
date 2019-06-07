@@ -25,7 +25,7 @@ class BiDAF(BaseModel):
         self.char_conv_kernel_size = char_conv_kernel_size
         self.max_answer_len = max_answer_len
         self.use_elmo = use_elmo
-        self.elmo_local_path= elmo_local_path
+        self.elmo_local_path=elmo_local_path
         self.word_embedding_trainable = word_embedding_trainable
         self.enable_na_answer = enable_na_answer # for squad2.0
         self.training = training
@@ -48,7 +48,7 @@ class BiDAF(BaseModel):
     def forward(self, context_word, context_char, context_len,
                 question_word, question_char, question_len,
                 answer_start, answer_len,
-                question_tokens, context_tokens,na):
+                question_tokens, context_tokens, na):
 
         c_mask = None
         q_mask = None

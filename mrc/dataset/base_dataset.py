@@ -1,9 +1,9 @@
 # coding: utf-8
 
-
 class BaseReader(object):
     def read(self, *input):
         raise NotImplementedError
+
 
 
 class BaseEvaluator(object):

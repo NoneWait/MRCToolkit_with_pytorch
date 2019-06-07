@@ -10,7 +10,7 @@ import string
 
 
 class SquadReader(BaseReader):
-    def __init__(self,fine_grained = False):
+    def __init__(self, fine_grained=False):
         self.tokenizer = SpacyTokenizer(fine_grained)
 
     def read(self, file_path):
@@ -71,10 +71,10 @@ class SquadReader(BaseReader):
             "context": context,
             "context_tokens": context_tokens,
             "context_token_spans": context_token_spans,
-            "context_word_len": [len(word) for word in context_tokens ],
-            "question_word_len": [len(word) for word in question_tokens ],
+            "context_word_len": [len(word) for word in context_tokens],
+            "question_word_len": [len(word) for word in question_tokens],
             "question": question,
-            'qid':qid,
+            'qid': qid,
             "question_tokens": question_tokens,
             "answer": answers[0] if answers is not None else None,
             "answer_start": answer_token_starts[0] if answers is not None else None,
