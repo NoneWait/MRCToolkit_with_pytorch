@@ -84,14 +84,41 @@ class BiLinear(nn.Module):
 class TriLinear(nn.Module):
     """
     三线性
+    math:`w^T[c,q,c\circ q]`
+    其中 w^T*(c\circ q) = (w\circ c)^T * q
     """
     def __init__(self, hidden_units, bias=False):
         super(TriLinear, self).__init__()
-        self.projecting_layer = nn.Linear(hidden_units, 1, bias=False)
-        self.bias = bias
+        self.projecting_layers = [nn.Linear(hidden_units, 1, bias=False)
+                                  for _ in range(2)]
+        self.dot_w = nn.Parameter(torch.zeros(1, 1, hidden_units))
+        if bias:
+            self.bias = nn.Parameter(torch.zeros(1))
+        else:
+            self.bias = None
 
-    def forward(self, *input):
-        raise NotImplementedError
+        for weigth in (self.projecting_layers[0].weight, self.projecting_layers[1].weight,
+                       self.dot_w):
+            nn.init.xavier_uniform_(weigth)
+
+    def forward(self, t0, t1):
+        t0_len, t1_len = t0.size(1), t1.size(1)
+        # [b, n, 1]
+        t0_score = self.projecting_layers[0](t0)
+        # [b, 1, m]
+        t1_score = self.projecting_layers[1](t1).transpose(2, 1)
+
+        # [w1*t0_1, ..., w_d*t0_d]
+        # [batch, n, d] \circ [1, 1 , d] =>[batch, n, d]
+        t0_dot_w = t0*self.dot_w
+        # [batch, n, d]*[batch, d, m] => [batch, n, m]
+        t0_t1_score = torch.matmul(t0_dot_w, t1.transpose(2, 1))
+
+        out = t0_t1_score + t0_score.expand([-1, -1, t1_len]) + t1_score.expand([-1, t0_len, -1])
+
+        if self.bias is not None:
+            out += self.bias
+        return out
 
 
 class MLP(nn.Module):

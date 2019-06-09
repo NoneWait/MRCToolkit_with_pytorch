@@ -1,14 +1,24 @@
 # coding:utf-8
 import torch
+import torch.nn as nn
+from torch.optim import Adam
+from torch.nn import CrossEntropyLoss
+
 import logging
 
 from mrc.model.base_model import BaseModel
 from mrc.nn.layers import Embedding, Highway
 from mrc.nn.attention import BiAttention
 from mrc.nn.similarity_function import TriLinear
+from mrc.nn.recurrent import BiLSTM
+from mrc.nn.ops import masked_softmax
+
 
 
 class BiDAF(BaseModel):
+    """
+    https://arxiv.org/pdf/1611.01603.pdf
+    """
     def __init__(self, vocab, pretrained_word_embedding=None,word_embedding_size=100, char_embedding_size=8,
                  char_conv_filters=100,
                  char_conv_kernel_size=5, rnn_hidden_size=100,
@@ -34,21 +44,25 @@ class BiDAF(BaseModel):
                                         embedding_shape=(len(self.vocab.get_word_vocab())+1, self.word_embedding_size),
                                         trainable=self.word_embedding_trainable)
         # TODO add char embedding
-        self.char_embedding = Embedding(embedding_shape=(len(self.vocab.get_char_vocab()) + 1, self.char_embedding_size),
-                                   trainable=True, init_scale=0.2)
+        self.char_embedding = Embedding(embedding_shape=(len(self.vocab.get_char_vocab()) + 1, self.char_embedding_size)
+                                        , trainable=True, init_scale=0.2)
 
         self.highway = Highway(num_layers=2)
 
-        self.phrase_lstm = None
+        self.phrase_lstm = BiLSTM(None, self.rnn_hidden_size)
 
         # TODO hidden_units 需要计算
         self.bi_attention = BiAttention(TriLinear(hidden_units=100))
 
+        self.modeling_lstm = BiLSTM(None, self.rnn_hidden_size, num_layers=2)
 
-    def forward(self, context_word, context_char, context_len,
-                question_word, question_char, question_len,
-                answer_start, answer_len,
-                question_tokens, context_tokens, na):
+        self.start_pred_layer = nn.Linear(None, 1, bias=False)
+
+    def forward(self, data):
+        (context_word, context_char, context_len,
+        question_word, question_char, question_len,
+        start_positions, end_positions,
+        question_tokens, context_tokens, na) = data
 
         c_mask = None
         q_mask = None
@@ -75,17 +89,45 @@ class BiDAF(BaseModel):
         question_repr = self.highway(question_repr)
 
         # 2. Phrase encoding TODO
-        context_repr, _ = self.phrase_lstm(context_repr)
-        question_repr, _ = self.phrase_lstm(question_repr)
+        context_repr = self.phrase_lstm(context_repr, c_len)
+        question_repr = self.phrase_lstm(question_repr, q_len)
 
         # 3. Bi-Attention
         c2q, q2c = self.bi_attention(context_repr, question_repr, c_mask, q_mask)
 
         # 4.Modeling layer TODO
-
+        # 区别于SMRC，它是将两层的输出做一个add操作，论文里不是这么实现的
+        final_merged_context = torch.cat([context_repr, c2q, context_repr*c2q, context_repr*q2c], dim=-1)
+        modeling_context = self.modeling_lstm(final_merged_context, c_len)
         # 5. Start prediction
-        start_prob = None
+        start_logits = self.start_pred_layer(torch.cat([final_merged_context, modeling_context], dim=-1))
+        start_logits = start_logits.squeeze(-1)
         # 6. End prediction
-        end_prob = None
+        end_logits = None
 
-        return start_prob, end_prob
+        # if train return loss, if eval return start_logits and end_logits
+        if start_positions is not None and end_positions is not None:
+            # If we are on multi-GPU, split add a dimension
+            if len(start_positions.size()) > 1:
+                start_positions = start_positions.squeeze(-1)
+            if len(end_positions.size()) > 1:
+                end_positions = end_positions.squeeze(-1)
+            # sometimes the start/end positions are outside our model inputs, we ignore these terms
+            ignored_index = start_logits.size(1)
+            start_positions.clamp_(0, ignored_index)
+            end_positions.clamp_(0, ignored_index)
+
+            loss_fct = CrossEntropyLoss(ignore_index=ignored_index)
+            start_loss = loss_fct(start_logits, start_positions)
+            end_loss = loss_fct(end_logits, end_positions)
+            total_loss = (start_loss + end_loss) / 2
+            return total_loss
+        else:
+            return start_logits, end_logits
+
+    def compile(self, initial_lr):
+        self.optimizer = Adam(self.parameters(), lr=initial_lr)
+
+    # def update(self):
+    #     self.optimizer.step()
+    #     self.optimizer.zero_grad()

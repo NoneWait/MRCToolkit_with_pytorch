@@ -4,6 +4,7 @@ import numpy as np
 import os
 from collections import OrderedDict, defaultdict
 import torch.nn as nn
+import torch
 
 """
 基本模型框架：
@@ -15,6 +16,7 @@ import torch.nn as nn
 6. get best answer
 """
 
+
 class BaseModel(nn.Module):
     def __init__(self, vocab=None):
         super(BaseModel, self).__init__()
@@ -22,23 +24,57 @@ class BaseModel(nn.Module):
 
         self.initialized = False
         self.ema_decay = 0
+        self.optimizer = None
 
     def __del__(self):
         # todo
         pass
 
-    def load(self, path, var_list=None):
+    def load(self, path):
         logging.info('Loading model from %s' % path)
         # todo
-        self.initialized = True
+        checkpoint = torch.load(path)
+        self.load_state_dict(checkpoint['model_state_dict'])
+        self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+        epoch = checkpoint['epoch']
+        loss = checkpoint['loss']
+        return epoch, loss
 
-    def save(self, path, global_step=None, var_list=None):
-        pass
+    def save(self,loss, path, epoch, global_step=None):
+        # model_to_save = model.module if hasattr(model, 'module') else model  # Only save the model it-self
+        # torch.save(model_to_save.state_dict(), path)
+        logging.info('Saving model to %s' % path)
+        torch.save(
+            {
+                'epoch': epoch,
+                'model_state_dict': self.state_dict(),
+                'optimizer_state_dict': self.optimizer.state_dict(),
+                'loss': loss
+            },
+            path
+        )
 
     def forward(self, *input):
         raise NotImplementedError
 
+    def update(self, *input):
+        """
+        update weight and bias
+        :param input:
+        :return:
+        """
+        if self.optimizer is not None:
+            self.optimizer.step()
+            self.optimizer.zero_grad()
+        else:
+            raise Exception("The model need to compile!")
+
     def compile(self, *input):
+        """
+        set the optimizer
+        :param input:
+        :return:
+        """
         raise NotImplementedError
 
     def get_best_answer(self, *input):
